@@ -1,3 +1,7 @@
+
+
+#define NDEBUG 			/* To get rid of the assert conditions when submitting*/
+
 #include <iostream>
 #include <vector>
 #include <map>
@@ -61,9 +65,30 @@ bool operator<(Point lhs, Point rhs)
 	}
 }
 
+bool operator>(Point lhs, Point rhs)
+{
+	if (lhs.x > rhs.x)
+	{
+		return true;
+	}
+	else if (lhs.x == rhs.x)
+	{
+		return lhs.y > rhs.y;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 bool operator==(Point lhs, Point rhs)
 {
 	return lhs.x == rhs.x && lhs.y == rhs.y;
+}
+
+bool operator!=(Point lhs, Point rhs)
+{
+	return lhs.x != rhs.x || lhs.y != rhs.y;
 }
 
 
@@ -247,7 +272,7 @@ class GameMap
 		return other;
 	}
 
-	size_t reachable(Point origin, size_t moves, std::set<Point>& points) const
+	size_t reachable(Point origin, size_t moves, std::set<Point>& points, bool exclude_current = false) const
 	{
 		assert(origin.x <= w);
 		assert(origin.y <= h);
@@ -255,7 +280,11 @@ class GameMap
 		std::queue<Point> q;
 		std::queue<Point> q2;
 		q.push(origin);
-		points.insert(origin);
+		if (!exclude_current)
+		{
+			points.insert(origin);
+		}
+		
 
 		
 		Point tmp;
@@ -301,10 +330,10 @@ class GameMap
 		return points.size();
 	}
 
-	std::set<Point> reachable(Point origin, size_t moves) const
+	std::set<Point> reachable(Point origin, size_t moves, bool exclude_current = false) const
 	{
 		std::set<Point> points;
-		reachable(origin, moves, points);
+		reachable(origin, moves, points, exclude_current);
 		return points;
 	}
 
@@ -798,11 +827,18 @@ std::vector<Move> build_plan_from_route(const Route& r)
 
 
 
-
-
-
-
+struct SpotNode;
 struct SpotEdge;
+
+
+
+struct SpotEdge
+{
+	SpotNode* left;
+	SpotNode* right;
+	int cost;
+	Route pathway;
+};
 
 struct SpotNode
 {
@@ -814,15 +850,21 @@ struct SpotNode
 	{
 		
 	}
+
+
+	SpotEdge* edge_for(SpotNode* other) const
+	{
+		for (size_t i = 0; i < edges.size(); ++i)
+		{
+			if (edges[i]->left == other || edges[i]->right == other)
+			{
+				return edges[i];
+			}
+		}
+	}
 };
 
-struct SpotEdge
-{
-	SpotNode* left;
-	SpotNode* right;
-	int cost;
-	Route pathway;
-};
+
 
 
 
@@ -959,6 +1001,11 @@ void build_route(Route& r, PartialRoute* pr)
 		return;
 	}
 
+	if (pr->prev)
+	{
+		assert(pr->location != pr->prev->location);
+	}
+
 	build_route(r, pr->prev);
 	r.add(pr->location);
 }
@@ -981,7 +1028,7 @@ SpotEdge* djikstra_search(SpotNodes* nodes, GameMap* map, Point start, Point end
 	mappings[start] = new PartialRoute (0, start);
 
 	{
-		auto reachable = map->reachable(start, 1);
+		auto reachable = map->reachable(start, 1, true);
 		for (auto& point : reachable)
 		{
 			if (point == end)
@@ -1045,6 +1092,7 @@ SpotEdge* djikstra_search(SpotNodes* nodes, GameMap* map, Point start, Point end
 		edge->right = end_node;
 		edge->cost = found_route->cost;
 		edge->pathway = r;
+		assert(r.start() != r[0]);
 		return edge;
 	}
 	else
@@ -1058,7 +1106,7 @@ SpotEdge* djikstra_search(SpotNodes* nodes, GameMap* map, Point start, Point end
 
 
 
-std::vector<Move> combine_routing(GameMap* map, SpotNodes*);
+Route combine_routing(GameMap* map, SpotNodes*);
 
 void print_moves(const std::vector<Move>&);
 
@@ -1070,7 +1118,8 @@ int main()
 	std::vector<Move> moves;
 	if (nodes->nodes[map->myStart()]->edges.size() != 1)
 	{
-		moves = combine_routing(map, nodes);
+		Route r = combine_routing(map, nodes);
+		moves = build_plan_from_route(r);
 	}
 	else
 	{
@@ -1093,8 +1142,94 @@ void print_moves(const std::vector<Move>& moves)
 }
 
 
-std::vector<Move> combine_routing(GameMap* map, SpotNodes* nodes)
-{
 
-	assert(false);
+Route combine_routing(GameMap* map, SpotNodes* nodes)
+{
+	std::set<SpotNode*> remaining_nodes;
+	std::vector<SpotNode*> node_ordering;
+	Point start_pos = map->myStart();
+	SpotNode* start_node = nodes->nodes[start_pos];
+	SpotNode* current_node;
+	Point current_pos;
+	SpotNode* next_node;
+	Point next_pos;
+	SpotEdge* next_edge = nullptr;
+	Route route;
+
+	for (auto node : nodes->nodes)
+	{
+		if (node.first != start_pos)
+			remaining_nodes.insert(node.second);
+	}
+	assert(remaining_nodes.size() > 0);
+
+	
+
+
+	node_ordering.push_back(start_node);
+	current_node = start_node;
+	current_pos = start_pos;
+
+	while (!remaining_nodes.empty())
+	{
+		int next_cost = -1;
+		next_node = nullptr;
+		next_edge = nullptr;
+		for (auto& n : remaining_nodes)
+		{
+			auto edge = current_node->edge_for(n);
+			assert(edge);
+			if (edge->cost < next_cost || next_cost < 0)
+			{
+				next_edge = edge;
+				next_cost = edge->cost;
+				next_node = n;
+				next_pos = n->point;
+			}
+		}
+
+		assert(next_node);
+		remaining_nodes.erase(next_node);
+		node_ordering.push_back(next_node);
+		current_node = next_node;
+		current_pos = next_pos;
+	}
+
+
+	SpotNode* last_node = nullptr;
+	for (auto& node : node_ordering)
+	{
+		if (!last_node)
+		{
+			route.add(start_pos);
+			last_node = node;
+			continue;
+		}
+
+		auto edge = last_node->edge_for(node);
+		assert(edge);
+		auto& pathway = edge->pathway;
+		if (edge->left == last_node)
+		{
+			for (size_t i = 0; i < pathway.size(); ++i)
+			{
+				route.add(pathway[i]);
+			}
+		}
+		else
+		{
+			for (size_t i = pathway.size() - 1; i >= 1; --i)
+			{
+				route.add(pathway[i-1]);
+			}
+			route.add(pathway.start());
+			assert(pathway.start() != pathway[0]);
+		}
+
+
+		last_node = node;
+	}
+
+	return route;
+
 }
