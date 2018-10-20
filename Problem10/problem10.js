@@ -8,16 +8,11 @@ const SNEK_POSITIONS = [];
 const LADDER_POSITIONS = [];
 const ROLLS = [];
 
-function Player(index) {
-  this.location = 'start'
-  this.id = index + 1
-}
-
 function readInput() {
   BOARD_SIZE = nextInt();
   NUM_PLAYERS = nextInt();
   for (let i = 0; i < NUM_PLAYERS; ++i)
-    PLAYERS[i] = new Player(i)
+    PLAYERS[i] = 'start'
   NUM_SNEKS = nextInt();
   for (let i = 0; i < NUM_SNEKS; ++i)
     SNEK_POSITIONS[i] = {
@@ -78,11 +73,11 @@ function move(position, spaces) {
 function main() {
   readInput()
 
-  let roll = 0, p = 0;
+  let roll = 0, p = 0, winCount = 0;
   while (PLAYERS.length && roll < ROLLS.length) {
-    PLAYERS[p].location = move(PLAYERS[p].location, ROLLS[roll++]);
-    if (PLAYERS[p].location === 'win') {
-      console.log(PLAYERS[p].id + ' winner');
+    PLAYERS[p] = move(PLAYERS[p], ROLLS[roll++]);
+    if (PLAYERS[p] === 'win') {
+      console.log(++winCount + ' winner');
       PLAYERS = [].concat(
         PLAYERS.slice(0, p),
         PLAYERS.slice(p+1)
@@ -92,7 +87,7 @@ function main() {
   }
 
   for (let i = 0; i < PLAYERS.length; ++i)
-    console.log(PLAYERS[i].id + ' ' + (PLAYERS[i].location.x+1) + ' ' + (PLAYERS[i].location.y+1));
+    console.log((winCount+1+i) + ' ' + (PLAYERS[i].x+1) + ' ' + (PLAYERS[i].y+1));
 }
 
 // default parsers for JS.
