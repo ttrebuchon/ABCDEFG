@@ -1,0 +1,9 @@
+3
+Rice Bean 399297742
+Bean Beef 598946612
+Banana Apple 698771048
+4
+Rice Beef
+Beef Banana
+Rice Rice
+Beef Rice

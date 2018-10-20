@@ -9,15 +9,60 @@
 #define MOD_VALUE 998244353
 
 
+#define BEEF_RICE 748683271
+
+#define SUPPORTS_CONSTEXPR
+
+#ifdef SUPPORTS_CONSTEXPR
+	#define CONSTEXPR constexpr
+#else
+	#define CONSTEXPR 
+#endif
+
+
 struct Currency;
 
 
 typedef unsigned long long quantity_t;
+typedef long double f_quantity_t;
+
+struct Fraction
+{
+	quantity_t numerator;
+	quantity_t denominator;
+
+
+	CONSTEXPR Fraction(quantity_t num, quantity_t den) : numerator(num), denominator(den)
+	{
+
+	}
+
+	CONSTEXPR Fraction(quantity_t value) : Fraction(value, 1)
+	{
+
+	}
+
+	CONSTEXPR Fraction() : Fraction(0)
+	{
+
+	}
+
+
+	CONSTEXPR f_quantity_t eval() const noexcept
+	{
+		return ((f_quantity_t)numerator)/denominator;
+	}
+
+	CONSTEXPR Fraction operator*(Fraction rhs) const noexcept
+	{
+		return Fraction(numerator*rhs.numerator, denominator*rhs.denominator);
+	}
+};
 
 struct Conversion
 {
 	Currency* currency;
-	quantity_t rate;
+	Fraction rate;
 
 	Conversion() : Conversion(nullptr, 0)
 	{
@@ -25,6 +70,16 @@ struct Conversion
 	}
 
 	Conversion(Currency* currency, quantity_t rate) : currency(currency), rate(rate)
+	{
+
+	}
+
+	Conversion(Currency* currency, Fraction rate) : currency(currency), rate(rate)
+	{
+
+	}
+
+	Conversion(Currency* currency, quantity_t rate_num, quantity_t rate_den) : currency(currency), rate(rate_num, rate_den)
 	{
 
 	}
@@ -61,7 +116,7 @@ struct cost_container_compare
 	
 	bool operator()(const value_type& lhs, const value_type& rhs) const noexcept
 	{
-		return lhs.cost > rhs.cost;
+		return lhs.cost.eval() > rhs.cost.eval();
 	}
 };
 
@@ -75,9 +130,6 @@ Cost djikstra_search(Node* start, Node* end, bool* success)
 	std::priority_queue<cost_container<Cost, Node*>, std::vector<cost_container<Cost, Node*>>, cost_container_compare<Cost, Node*>> nodes;
 
 
-	nodes.push(cost_container<Cost, Node*> { 1, start });
-	nodes.push(cost_container<Cost, Node*> { 100, end });
-	assert(nodes.top().value == start);
 
 
 	nodes.push(cost_container<Cost, Node*> { 1, start });
@@ -115,6 +167,8 @@ Cost djikstra_search(Node* start, Node* end, bool* success)
 	
 	return 0;
 }
+
+
 
 int main()
 {
@@ -187,6 +241,7 @@ int main()
 		}
 
 		obj1->conversions[obj2] = Conversion(obj2, line.rate);
+		obj2->conversions[obj1] = Conversion(obj1, 1, line.rate);
 	}
 
 
@@ -227,14 +282,25 @@ int main()
 		}
 
 		bool success;
-		auto result = djikstra_search<Currency, quantity_t>(start, end, &success);
+		auto result = djikstra_search<Currency, Fraction>(start, end, &success);
+
 		if (success)
 		{
-			std::cout << (result % MOD_VALUE) << std::endl;
+			std::cout << result.numerator << " / " << result.denominator << std::endl;
 		}
 		else
 		{
-			std::cout << -1 << std::endl;
+			std::cout << "-1" << std::endl;
 		}
+		
+
+		// if (success)
+		// {
+		// 	std::cout << (result % MOD_VALUE) << std::endl;
+		// }
+		// else
+		// {
+		// 	std::cout << -1 << std::endl;
+		// }
 	}
 }
